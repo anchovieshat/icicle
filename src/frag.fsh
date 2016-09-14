@@ -4,8 +4,14 @@ in vec2 f_tex_points;
 
 uniform sampler2D tex;
 
-out vec3 color;
+out vec4 color;
 
 void main() {
-	color = texture(tex, f_tex_points).rgb;
+    vec4 out_color = texture(tex, f_tex_points);
+
+	if (out_color.a < 0.5f) {
+		discard;
+	}
+
+	color = out_color;
 }
