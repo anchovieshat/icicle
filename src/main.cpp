@@ -49,15 +49,6 @@ int main() {
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	GLuint v_points;
-	glGenBuffers(1, &v_points);
-	glBindBuffer(GL_ARRAY_BUFFER, v_points);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
-
-	GLuint v_tex_points;
-	glGenBuffers(1, &v_tex_points);
-	glBindBuffer(GL_ARRAY_BUFFER, v_tex_points);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(tex_points), tex_points, GL_STATIC_DRAW);
 
 	Entity *tile_map = (Entity *)malloc(sizeof(Entity) * map_size);
 	for (u32 x = 0; x < map_width; x++) {
@@ -70,8 +61,6 @@ int main() {
 	Entity player = new_entity(9, glm::vec3(0.0f, 0.0f, 1.0f));
 	ea_push(entity_map, player);
 
-	GLuint v_entity;
-	glGenBuffers(1, &v_entity);
 
 	GLuint atlas_tex;
 	SDL_Surface *atlas_surf = IMG_Load("assets/atlas.png");
@@ -89,6 +78,8 @@ int main() {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, atlas_surf->w, atlas_surf->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, atlas_surf->pixels);
 	free(atlas_surf);
 
+	glActiveTexture(GL_TEXTURE0);
+
 	GLuint a_points = glGetAttribLocation(shader, "points");
 	GLuint a_tex_points = glGetAttribLocation(shader, "tex_points");
 	GLuint a_pos = glGetAttribLocation(shader, "pos");
@@ -96,6 +87,33 @@ int main() {
 
 	GLuint u_pv = glGetUniformLocation(shader, "pv");
 	GLuint u_tex = glGetUniformLocation(shader, "tex");
+
+	glEnableVertexAttribArray(a_points);
+	glEnableVertexAttribArray(a_pos);
+	glEnableVertexAttribArray(a_tex_points);
+	glEnableVertexAttribArray(a_tex_idx);
+
+	GLuint v_points;
+	glGenBuffers(1, &v_points);
+	glBindBuffer(GL_ARRAY_BUFFER, v_points);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(points), points, GL_STATIC_DRAW);
+	glVertexAttribPointer(a_points, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+	GLuint v_tex_points;
+	glGenBuffers(1, &v_tex_points);
+	glBindBuffer(GL_ARRAY_BUFFER, v_tex_points);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(tex_points), tex_points, GL_STATIC_DRAW);
+	glVertexAttribIPointer(a_tex_points, 1, GL_UNSIGNED_BYTE, 0, NULL);
+
+	GLuint v_entity;
+	glGenBuffers(1, &v_entity);
+	glBindBuffer(GL_ARRAY_BUFFER, v_entity);
+	glVertexAttribPointer(a_pos, 3, GL_FLOAT, GL_FALSE, sizeof(Entity), (void *)STRUCT_OFFSET(Entity, pos));
+	glVertexAttribDivisor(a_pos, 1);
+	glVertexAttribIPointer(a_tex_idx, 1, GL_UNSIGNED_BYTE, sizeof(Entity), (void *)STRUCT_OFFSET(Entity, sprite_id));
+	glVertexAttribDivisor(a_tex_idx, 1);
+
+	glUseProgram(shader);
 
 	glViewport(0, 0, screen_width, screen_height);
 
@@ -161,12 +179,6 @@ int main() {
 		}
 
 		glClear(GL_COLOR_BUFFER_BIT);
-		glUseProgram(shader);
-
-		glEnableVertexAttribArray(a_points);
-		glEnableVertexAttribArray(a_pos);
-		glEnableVertexAttribArray(a_tex_points);
-		glEnableVertexAttribArray(a_tex_idx);
 
 		f32 s_ratio = (f32)screen_width / (f32)screen_height;
 		glm::mat4 projection = glm::ortho(-10.0f * s_ratio, 10.f * s_ratio, -10.0f, 10.0f, -2.0f, 2.0f);
@@ -175,30 +187,15 @@ int main() {
 		view = glm::translate(view, cam_pos);
 		glm::mat4 pv = projection * view;
 
-		glBindBuffer(GL_ARRAY_BUFFER, v_points);
-		glVertexAttribPointer(a_points, 2, GL_FLOAT, GL_FALSE, 0, NULL);
-
-		glBindBuffer(GL_ARRAY_BUFFER, v_tex_points);
-		glVertexAttribIPointer(a_tex_points, 1, GL_UNSIGNED_BYTE, 0, NULL);
-
-		glBindBuffer(GL_ARRAY_BUFFER, v_entity);
-   		glVertexAttribPointer(a_pos, 3, GL_FLOAT, GL_FALSE, sizeof(Entity), (void *)STRUCT_OFFSET(Entity, pos));
-   		glVertexAttribIPointer(a_tex_idx, 1, GL_UNSIGNED_BYTE, sizeof(Entity), (void *)STRUCT_OFFSET(Entity, sprite_id));
-		glVertexAttribDivisor(a_pos, 1);
-		glVertexAttribDivisor(a_tex_idx, 1);
-
-		glBindTexture(GL_TEXTURE_2D, atlas_tex);
-		glActiveTexture(GL_TEXTURE0);
-
 		glUniform1i(u_tex, 0);
 		glUniformMatrix4fv(u_pv, 1, GL_FALSE, &pv[0][0]);
 
-		glBindBuffer(GL_ARRAY_BUFFER, v_entity);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Entity) * map_size, tile_map, GL_STATIC_DRAW);
+		glBindVertexArray(vao);
+
+		glBufferData(GL_ARRAY_BUFFER, sizeof(Entity) * map_size, tile_map, GL_STREAM_DRAW);
 		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, sizeof(points), map_size);
 
-		glBindBuffer(GL_ARRAY_BUFFER, v_entity);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Entity) * entity_map->len, entity_map->arr, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(Entity) * entity_map->len, entity_map->arr, GL_STREAM_DRAW);
 		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, sizeof(points), entity_map->len);
 
 		SDL_GL_SwapWindow(window);
